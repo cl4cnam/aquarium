@@ -50,7 +50,7 @@
 		thisAlga.lifePoints = p_lifePoints
 		thisAlga.age = 0
 	`}
-	
+
 	# after birth
 	#=============
 	.var life
