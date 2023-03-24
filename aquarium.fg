@@ -17,6 +17,10 @@
 		return collision(v(obj1.x), v(obj1.width), v(obj2.x), v(obj2.width))
 				&& collision(v(obj1.y), v(obj1.height), v(obj2.y), v(obj2.height))
 	}
+	function setGender(fish, sexe) {
+		fish.sexe = sexe
+		fish.setAttribute('rx', 15*sexe)
+	}
 `}
 
 {js () `
@@ -114,6 +118,8 @@
 			'Carpe': '#004080',
 		}[p_race]
 		thisFish.carnivore = ['Mérou', 'Thon', 'Poisson-clown'].includes(p_race)
+		thisFish.ageHermaphrodite = ['Mérou', 'Bar'].includes(p_race)
+		thisFish.opportunisticHermaphrodite = ['Sole', 'Poisson-clown'].includes(p_race)
 		thisFish.setAttribute('x', innerWidth * Math.random())
 		thisFish.setAttribute('y', innerHeight * Math.random())
 		thisFish.style.display = 'inline'
@@ -143,6 +149,11 @@
 		%whileTrueAwaitFrame adapt thisFish `
 			thisFish.age += 1
 			thisFish.lifePoints -= 0.01
+			if (thisFish.ageHermaphrodite && thisFish.age >= 450 && ! thisFish.genderChanged) {
+				thisFish.genderChanged = true
+				setGender(thisFish, 1 - thisFish.sexe)
+			}
+			if (thisFish.opportunisticHermaphrodite) thisFish.opportunisticChange = false
 
 			// Bouncing
 			//---------
@@ -157,9 +168,16 @@
 				// When some fishs newly collide, generate a new birth or a bite
 				if (thisFish != otherFish && ! thisFish.eltCollision && colliObj(thisFish, otherFish)  ) {
 					thisFish.eltCollision = otherFish
-					if (between(thisFish.age, 100, 600) && between(otherFish.age, 100, 600) && thisFish.sexe == 0 && otherFish.sexe == 1 && thisFish.race == otherFish.race) {
-						// send a 'New birth' signal
-						sugBip('newBirth')
+					if (between(thisFish.age, 100, 600) && between(otherFish.age, 100, 600) && thisFish.race == otherFish.race) {
+						if (thisFish.sexe == 0 && otherFish.sexe == 1) {
+							// send a 'New birth' signal
+							sugBip('newBirth')
+						} else if (thisFish.sexe == otherFish.sexe && thisFish.opportunisticHermaphrodite && ! otherFish.opportunisticChange) {
+							thisFish.opportunisticChange = true
+							setGender(thisFish, 1 - thisFish.sexe)
+							// send a 'New birth' signal
+							sugBip('newBirth')
+						}
 					}
 					if (thisFish.carnivore && thisFish.lifePoints < 5) {
 						thisFish.lifePoints += 4
@@ -235,8 +253,8 @@
 	(lifeOfFish 'Thon' 0)
 	(lifeOfFish 'Thon' 1)
 	(lifeOfFish 'Poisson-clown' 0)
-	(lifeOfFish 'Poisson-clown' 1)
-	(lifeOfFish 'Sole' 0)
+	(lifeOfFish 'Poisson-clown' 0)
+	(lifeOfFish 'Sole' 1)
 	(lifeOfFish 'Sole' 1)
 	(lifeOfFish 'Bar' 0)
 	(lifeOfFish 'Bar' 1)
