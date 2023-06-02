@@ -1,0 +1,246 @@
+#!syntax:pythonic
+
+#===============================
+#
+# Preparation
+# -----------
+#
+#===============================
+
+var innerWidth := import('innerWidth')
+var innerHeight := import('innerHeight')
+
+prepContinuous(`
+	function between(n, mini, maxi) {return mini < n && n < maxi}
+	function collision(pos1, size1, pos2, size2) {
+		return -size2 <= (pos2-pos1) && (pos2-pos1) <= size1
+	}
+	function colliObj(obj1, obj2) {
+		return collision(v(obj1.x), v(obj1.width), v(obj2.x), v(obj2.width))
+				&& collision(v(obj1.y), v(obj1.height), v(obj2.y), v(obj2.height))
+	}
+	function setGender(fish, sexe) {
+		fish.sexe = sexe
+		fish.setAttribute('rx', 15*sexe)
+	}
+`)
+
+js ():
+	const svg = document.getElementById('gameZone')
+	svg.setAttribute('width', innerWidth)
+	svg.setAttribute('height', innerHeight)
+
+def drawNewFish(p_w, p_h, p_r):
+	displayNewSVGElementIn('<rect style="display: none" width="' + p_w + '" height="' + p_h + '" rx="' + p_r + '" x="0" y="0" />', 'svg')
+
+
+def drawNewAlga():
+	displayNewSVGElementIn('<rect style="display: none" fill="#00ff80" width="10" height="0" x="0" y="0" />', 'svg')
+
+
+def lifeOfAlga(p_lifePoints):
+	# birth
+	#==========
+	var thisAlga := drawNewAlga()
+	js (thisAlga, p_lifePoints):
+		const y = innerHeight * Math.random()
+		thisAlga.setAttribute('x', innerWidth * Math.random())
+		thisAlga.setAttribute('y', y)
+		thisAlga.setAttribute('height', innerHeight - y)
+		thisAlga.style.display = 'inline'
+		thisAlga.lifePoints = p_lifePoints
+		thisAlga.age = 0
+	
+	# after birth
+	#=============
+	var life
+	var newBirth
+	
+	par: @life
+		# meeting management
+		#--------------------------------
+		whileTrueAwaitFrame adapt thisAlga:
+			thisAlga.age += 1
+			thisAlga.lifePoints += 0.01
+			
+			// Meeting with hungry fish
+			//-------------------------
+			for (const otherFish of events.get('oneFish')) {
+				// When some fishs newly collide, generate a bite
+				if (! thisAlga.eltCollision && colliObj(thisAlga, otherFish)  ) {
+					thisAlga.eltCollision = otherFish
+					if (!otherFish.carnovire && otherFish.lifePoints < 7) {
+						thisAlga.lifePoints -= 10
+						otherFish.lifePoints += 3
+					}
+				// Mark the end of collision
+				} else if (thisAlga != otherFish && thisAlga.eltCollision === otherFish && ! colliObj(thisAlga, otherFish)  ) {
+					thisAlga.eltCollision = null
+				}
+			}
+			if (thisAlga.lifePoints <= 0 || thisAlga.age > 1200) sugBreak('life')
+			if (thisAlga.lifePoints >= 10) {
+				thisAlga.lifePoints /= 2
+				sugAssign('newBirth', thisAlga.lifePoints)
+			}
+		
+		# birth management
+		#--------------------------------
+		while true:
+			# await a newBirth signal
+			var lifePoints := awaitBeep newBirth
+			# add a new parallel branch in 'supplLifeOf' "par"
+			spawn supplLifeOf:
+				lifeOfAlga(lifePoints)
+	
+	# death
+	#=============
+	js (thisAlga):
+		thisAlga.parentNode.removeChild(thisAlga)
+
+def lifeOfFish(p_race, p_sexe):
+	# birth
+	#==========
+	var thisFish := drawNewFish(100, 30, 15*p_sexe)
+	js (thisFish, p_race, p_sexe):
+		thisFish.style.fill = {
+			'Mérou': '#ff0000',
+			'Thon': '#ff8000',
+			'Poisson-clown': '#c06000',
+			'Sole': '#0000ff',
+			'Bar': '#00a0ff',
+			'Carpe': '#004080',
+		}[p_race]
+		thisFish.carnivore = ['Mérou', 'Thon', 'Poisson-clown'].includes(p_race)
+		thisFish.ageHermaphrodite = ['Mérou', 'Bar'].includes(p_race)
+		thisFish.opportunisticHermaphrodite = ['Sole', 'Poisson-clown'].includes(p_race)
+		thisFish.setAttribute('x', innerWidth * Math.random())
+		thisFish.setAttribute('y', innerHeight * Math.random())
+		thisFish.style.display = 'inline'
+		thisFish.dx = Math.floor(5*Math.random())-2
+		thisFish.dy = Math.floor(5*Math.random())-2
+		thisFish.race = p_race
+		thisFish.sexe = p_sexe
+		thisFish.eltCollision = null
+		thisFish.lifePoints = 10
+		thisFish.age = 0
+	
+	# after birth
+	#=============
+	var move
+	var newBirth
+	var life
+	
+	par: @life
+		# broadcasting the fish
+		#-----------------------
+		whileTrueAwaitFrame send thisFish:
+			send('oneFish', thisFish)
+		
+		# bouncing and meeting management
+		#--------------------------------
+		whileTrueAwaitFrame adapt thisFish:
+			thisFish.age += 1
+			thisFish.lifePoints -= 0.01
+			if (thisFish.ageHermaphrodite && thisFish.age >= 450 && ! thisFish.genderChanged) {
+				thisFish.genderChanged = true
+				setGender(thisFish, 1 - thisFish.sexe)
+			}
+			if (thisFish.opportunisticHermaphrodite) thisFish.opportunisticChange = false
+
+			// Bouncing
+			//---------
+			if (v(thisFish.x) + v(thisFish.width) > innerWidth) thisFish.dx = - Math.abs(thisFish.dx)
+			if (v(thisFish.x) < 0) thisFish.dx = Math.abs(thisFish.dx)
+			if (v(thisFish.y) + v(thisFish.height) > innerHeight) thisFish.dy = - Math.abs(thisFish.dy)
+			if (v(thisFish.y) < 0) thisFish.dy = Math.abs(thisFish.dy)
+			
+			// Meeting
+			//--------
+			for (const otherFish of events.get('oneFish')) {
+				// When some fishs newly collide, generate a new birth or a bite
+				if (thisFish != otherFish && ! thisFish.eltCollision && colliObj(thisFish, otherFish)  ) {
+					thisFish.eltCollision = otherFish
+					if (between(thisFish.age, 100, 600) && between(otherFish.age, 100, 600) && thisFish.race == otherFish.race) {
+						if (thisFish.sexe == 0 && otherFish.sexe == 1) {
+							// send a 'New birth' signal
+							sugBip('newBirth')
+						} else if (thisFish.sexe == otherFish.sexe && thisFish.opportunisticHermaphrodite && ! otherFish.opportunisticChange) {
+							thisFish.opportunisticChange = true
+							setGender(thisFish, 1 - thisFish.sexe)
+							// send a 'New birth' signal
+							sugBip('newBirth')
+						}
+					}
+					if (thisFish.carnivore && thisFish.lifePoints < 5) {
+						thisFish.lifePoints += 4
+						otherFish.lifePoints -= 6
+					}
+				// Mark the end of collision
+				} else if (thisFish != otherFish && thisFish.eltCollision === otherFish && ! colliObj(thisFish, otherFish)  ) {
+					thisFish.eltCollision = null
+				}
+			}
+			
+			// end of life
+			//------------
+			if (thisFish.age > 900 || thisFish.lifePoints <= 0) sugBreak('life')
+		
+		# birth management
+		#--------------------------------
+		while true:
+			# await a newBirth signal
+			awaitBeep newBirth
+			# add a new parallel branch in 'supplLifeOf' "par"
+			spawn supplLifeOf:
+				blockCall0 lifeOfFish:
+					p_race
+					js( [],  `return Math.floor(2*Math.random())` )
+		
+		# movement of the fish
+		#----------------------
+		whileTrueAwaitFrame play thisFish: @move
+			thisFish.setAttribute('x', v(thisFish.x) + thisFish.dx*delta/30)
+			thisFish.setAttribute('y', v(thisFish.y) + thisFish.dy*delta/30)
+		
+		# pausing management
+		#-------------------
+		while true:
+			awaitClickBeep(thisFish)
+			pause move
+			awaitClickBeep(thisFish)
+			resume move
+	
+	# death
+	#=============
+	js (thisFish):
+		thisFish.parentNode.removeChild(thisFish)
+
+
+
+#===============================
+#
+# Main program
+# ------------
+#
+#===============================
+separateMicrostep()
+
+var supplLifeOf
+var numAlga := parRange(0, 10)
+
+par supplBranchBy supplLifeOf:
+	par inside numAlga:
+		lifeOfAlga(5)
+	lifeOfFish('Mérou', 0)
+	lifeOfFish('Mérou', 1)
+	lifeOfFish('Thon', 0)
+	lifeOfFish('Thon', 1)
+	lifeOfFish('Poisson-clown', 0)
+	lifeOfFish('Poisson-clown', 0)
+	lifeOfFish('Sole', 1)
+	lifeOfFish('Sole', 1)
+	lifeOfFish('Bar', 0)
+	lifeOfFish('Bar', 1)
+	lifeOfFish('Carpe', 0)
+	lifeOfFish('Carpe', 1)
