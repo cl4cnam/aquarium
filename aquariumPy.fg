@@ -59,7 +59,7 @@ def lifeOfAlga(p_lifePoints):
 	par: @life
 		# meeting management
 		#--------------------------------
-		whileTrueAwaitFrame adapt thisAlga:
+		whileTrueAwaitFrame_js adapt thisAlga:
 			thisAlga.age += 1
 			thisAlga.lifePoints += 0.01
 			
@@ -134,12 +134,12 @@ def lifeOfFish(p_race, p_sexe):
 	par: @life
 		# broadcasting the fish
 		#-----------------------
-		whileTrueAwaitFrame send thisFish:
+		whileTrueAwaitFrame_js send thisFish:
 			send('oneFish', thisFish)
 		
 		# bouncing and meeting management
 		#--------------------------------
-		whileTrueAwaitFrame adapt thisFish:
+		whileTrueAwaitFrame_js adapt thisFish:
 			thisFish.age += 1
 			thisFish.lifePoints -= 0.01
 			if (thisFish.ageHermaphrodite && thisFish.age >= 450 && ! thisFish.genderChanged) {
@@ -199,7 +199,7 @@ def lifeOfFish(p_race, p_sexe):
 		
 		# movement of the fish
 		#----------------------
-		whileTrueAwaitFrame play thisFish: @move
+		whileTrueAwaitFrame_js play thisFish: @move
 			thisFish.setAttribute('x', v(thisFish.x) + thisFish.dx*delta/30)
 			thisFish.setAttribute('y', v(thisFish.y) + thisFish.dy*delta/30)
 		
